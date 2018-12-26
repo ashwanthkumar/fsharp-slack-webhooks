@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/ashwanthkumar/fsharp-slack-webhooks.svg?branch=master)](https://travis-ci.org/ashwanthkumar/fsharp-slack-webhooks)
 # fsharp-slack-webhooks
 
 F# library to send messages to Slack via Incoming webhooks.
