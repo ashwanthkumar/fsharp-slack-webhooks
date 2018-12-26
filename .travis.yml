@@ -1,4 +1,4 @@
-language: csharp
+language: fsharp
 dist: trusty
 sudo: false
 dotnet: 2.2
