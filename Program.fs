@@ -1,5 +1,10 @@
-﻿module Main
+﻿module SlackWebhooks.Client
 open Newtonsoft.Json
+open HttpFs.Client
+open Hopac
+
+type ApiResponse = {Body:string; StatusCode:int}
+type Response = {Success: bool; Error: string option}
 
 [<JsonObject(MemberSerialization.OptIn)>]
 type Field(title: string, value: string, short: bool) = class
@@ -80,16 +85,16 @@ type Attachment(fallback: string,
     member me.ThumbnailUrl = thumbnailUrl
 end
 
-type Payload(parse: string option,
-                username: string option,
-                iconUrl: string option,
-                iconEmoji:string option,
-                channel:string option,
-                text:string option,
-                linkNames:string option,
-                unfurlLinks: bool option,
-                unfurlMedia: bool option,
-                isMarkdown:bool option) = class
+type Payload(?parse: string,
+                ?username: string,
+                ?iconUrl: string,
+                ?iconEmoji:string,
+                ?channel:string,
+                ?text:string,
+                ?linkNames:string,
+                ?unfurlLinks: bool,
+                ?unfurlMedia: bool,
+                ?isMarkdown:bool) = class
     [<JsonProperty("parse")>]
     member me.Parse = parse
     [<JsonProperty("username")>]
@@ -112,28 +117,25 @@ type Payload(parse: string option,
     member me.IsMarkdown = isMarkdown
 end
 
-module SlackWebhooks = 
-    type ApiResponse = {Body:string; StatusCode:int}
-    type Response = {Success: bool; Error: string option}
-    open HttpFs.Client
-    open Hopac
+let captureBodyAndStatusCode statusCode responseBody: ApiResponse =
+    {Body=responseBody; StatusCode=statusCode}
+let apiResponse2Response apiResponse = 
+    match apiResponse.StatusCode with
+    | x when x < 300 -> {Success=true; Error=None}
+    | x -> {Success=false; Error=Some(apiResponse.Body)}
 
-    let captureBodyAndStatusCode statusCode responseBody: ApiResponse =
-        {Body=responseBody; StatusCode=statusCode}
-    let apiResponse2Response apiResponse = 
-        match apiResponse.StatusCode with
-        | x when x < 300 -> {Success=false; Error=Some(apiResponse.Body)}
-        | x -> {Success=true; Error=None}
-
-    let SendAsync webhookUrl payload = 
-        Request.createUrl Post webhookUrl
-                    |> Request.bodyString (JsonConvert.SerializeObject(payload))
-                    |> Request.setHeader (ContentType (ContentType.create("application", "json")))
-                    |> getResponse
-                    |> Alt.afterJob(fun resp ->
-                        resp 
-                            |> Response.readBodyAsString 
-                            |> Job.map (captureBodyAndStatusCode resp.statusCode)
-                            |> Job.map apiResponse2Response
-                    )
-                    |> Hopac.run
+open SlackWebhooks.JsonUtils
+let Send webhookUrl payload = 
+    let converters : JsonConverter[] = [| new OptionConverter() |]
+    let payloadAsJson = JsonConvert.SerializeObject(payload, converters)
+    Request.createUrl Post webhookUrl
+                |> Request.bodyString payloadAsJson
+                |> Request.setHeader (ContentType (ContentType.create("application", "json")))
+                |> getResponse
+                |> Alt.afterJob(fun resp ->
+                    resp 
+                        |> Response.readBodyAsString 
+                        |> Job.map (captureBodyAndStatusCode resp.statusCode)
+                        |> Job.map apiResponse2Response
+                )
+                |> Hopac.run
