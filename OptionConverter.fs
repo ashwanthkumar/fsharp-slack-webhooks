@@ -26,3 +26,5 @@ type OptionConverter() =
         let cases = FSharpType.GetUnionCases(t)
         if value = null then FSharpValue.MakeUnion(cases.[0], [||])
         else FSharpValue.MakeUnion(cases.[1], [|value|])
+
+let CustomJsonConverters: JsonConverter[] = [| new OptionConverter() |]
